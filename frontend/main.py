@@ -45,27 +45,29 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-RESOURCE = os.environ["AGENT_ENGINE_RESOURCE_NAME"]
-# The agent's app directory (matches agent_directory in agents-cli-manifest.yaml).
+RESOURCE = os.environ.get("AGENT_ENGINE_RESOURCE_NAME", "")
 AGENT_DIRECTORY = os.environ.get("AGENT_DIRECTORY", "app")
-# Location is embedded in the resource name: projects/<p>/locations/<loc>/reasoningEngines/<id>.
-LOCATION = RESOURCE.split("/locations/")[1].split("/")[0]
 
-# A2A endpoint for an Agent Runtime deployment, via the Agent Engine HTTP
-# passthrough. The card lives at the well-known path under this base.
+if "/locations/" in RESOURCE:
+    LOCATION = RESOURCE.split("/locations/")[1].split("/")[0]
+else:
+    LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-east1")
+
 A2A_BASE = (
     f"https://{LOCATION}-aiplatform.googleapis.com/reasoningEngines/v1/"
     f"{RESOURCE}/api/a2a/{AGENT_DIRECTORY}"
+    if RESOURCE else ""
 )
-A2A_CARD_URL = f"{A2A_BASE}/.well-known/agent-card.json"
+A2A_CARD_URL = f"{A2A_BASE}/.well-known/agent-card.json" if A2A_BASE else ""
 
-# The agent tags its A2UI data parts with this mime type.
 _A2UI_MIME = "application/json+a2ui"
 
-# One set of ADC credentials, refreshed per request (access tokens expire ~1h).
-_creds, _ = google.auth.default(
-    scopes=["https://www.googleapis.com/auth/cloud-platform"]
-)
+try:
+    _creds, _ = google.auth.default(
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+except Exception:
+    _creds = None
 
 
 def _auth_headers() -> dict[str, str]:
